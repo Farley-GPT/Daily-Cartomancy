@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Daily Cartomancy</title>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Quicksand:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: linear-gradient(135deg, #e0f7fa 0%, #e1efff 100%);
+            color: #1e293b;
+            overflow: hidden; /* Prevent body scroll, handle in app */
+        }
+        .serif { font-family: 'Cinzel', serif; }
+        
+        /* Glassmorphism Utilities */
+        .glass {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Hide Scrollbar but allow scroll */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { motion, AnimatePresence } = window.Motion;
+
+        // --- DATA & LOGIC ---
+
+        const SUITS = [
+            { id: 'spades', symbol: '♠', color: 'text-slate-900', name: 'Spades' },
+            { id: 'hearts', symbol: '♥', color: 'text-rose-600', name: 'Hearts' },
+            { id: 'clubs', symbol: '♣', color: 'text-slate-900', name: 'Clubs' },
+            { id: 'diamonds', symbol: '♦', color: 'text-rose-600', name: 'Diamonds' }
+        ];
+
+        const RANKS = [
+            'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'
+        ];
+
+        // A sample database of 52 fortunes. 
+        // In the future, this can be loaded from an external JSON file.
+        const FORTUNE_DATABASE = [
+            "A sudden change in direction brings unexpected joy.",
+            "Old wounds begin to heal; a time of peace is near.",
+            "A message from a distant friend will clarify your doubts.",
+            "Be wary of promises that sound too good to be true.",
+            "Financial stability is on the horizon, but requires discipline.",
+            "A creative spark will lead to a new passion project.",
+            "Silence is your best answer in the coming conflict.",
+            "Travel is indicated; look to the horizon.",
+            "A small kindness you do today will return tenfold.",
+            "Beware of envy in your close circle.",
+            "The answer you seek is already within you.",
+            "A collaboration will prove more fruitful than working alone.",
+            "Delay your decision until the moon is full.",
+            "An unexpected gift arrives.",
+            "Focus on your health; balance is key.",
+            "A romantic interest surfaces in an unlikely place.",
+            "Trust your intuition over logic today.",
+            "A barrier is removed, allowing you to move forward.",
+            "Someone is thinking of you with great affection.",
+            "Let go of what you cannot control.",
+            "Victory is assured if you remain patient.",
+            "A secret will be revealed.",
+            "Focus on home and family matters.",
+            "A legal matter resolves in your favor.",
+            "Inspiration strikes during the night.",
+            "A new partnership is forming.",
+            "Avoid making hasty investments.",
+            "Your hard work is about to be recognized.",
+            "Reconnect with nature to find clarity.",
+            "A misunderstanding will be cleared up soon.",
+            "Good news comes regarding a child or younger person.",
+            "A strong older figure offers wisdom.",
+            "You will soon be free of a burden.",
+            "A celebration is in order.",
+            "Watch your dreams closely; they contain messages.",
+            "A lost item will be found.",
+            "Diplomacy is required in your current situation.",
+            "A shift in perspective changes everything.",
+            "You are protected from harm.",
+            "Prosperity flows when you open your hands.",
+            "A relationship reaches a new level of understanding.",
+            "Study or learning leads to advancement.",
+            "Forgiveness is the key to your freedom.",
+            "A surprise visit is likely.",
+            "Your courage will be tested and proven.",
+            "Harmony returns to your household.",
+            "A difficult cycle is ending.",
+            "New opportunities arise from a distinct failure.",
+            "Listen to the water; it knows the way.",
+            "Fire burns away the old to make way for the new.",
+            "The earth remains solid beneath your feet.",
+            "The wind carries your name to new places."
+        ];
+
+        // Seeded Random Number Generator to ensure daily consistency
+        // Uses the date string as a seed.
+        const seededRandom = (seed) => {
+            let h = 0x811c9dc5;
+            for (let i = 0; i < seed.length; i++) {
+                h ^= seed.charCodeAt(i);
+                h = Math.imul(h, 0x01000193);
+            }
+            return function() {
+                h = Math.imul(h ^ (h >>> 16), 2246822507);
+                h = Math.imul(h ^ (h >>> 13), 3266489909);
+                return (h >>> 0) / 4294967296;
+            }
+        };
+
+        const getDailyDivination = (suit, rank) => {
+            const dateStr = new Date().toDateString(); // E.g., "Fri Oct 27 2023"
+            const seed = dateStr; 
+            const rng = seededRandom(seed);
+            
+            // Create a shuffled index array for the day
+            let indices = Array.from({length: 52}, (_, i) => i);
+            for (let i = indices.length - 1; i > 0; i--) {
+                const j = Math.floor(rng() * (i + 1));
+                [indices[i], indices[j]] = [indices[j], indices[i]];
+            }
+
+            // Map standard deck to 0-51 index
+            const suitIndex = SUITS.findIndex(s => s.id === suit);
+            const rankIndex = RANKS.indexOf(rank);
+            const cardValue = (suitIndex * 13) + rankIndex;
+
+            // Get the shuffled fortune index
+            const fortuneIndex = indices[cardValue] % FORTUNE_DATABASE.length;
+            return FORTUNE_DATABASE[fortuneIndex];
+        };
+
+        // --- COMPONENTS ---
+
+        const CardDisplay = ({ suit, rank, theme }) => {
+            const s = SUITS.find(x => x.id === suit);
+            const isRed = s.id === 'hearts' || s.id === 'diamonds';
+            
+            return (
+                <div className={`relative w-64 h-96 rounded-2xl shadow-xl flex flex-col justify-between p-6 select-none bg-white transition-all duration-500`}>
+                    {/* Top Corner */}
+                    <div className={`text-3xl font-bold ${s.color} flex flex-col items-center leading-none`}>
+                        <span>{rank}</span>
+                        <span>{s.symbol}</span>
+                    </div>
+
+                    {/* Center Art Placeholder */}
+                    <div className="flex-grow flex items-center justify-center opacity-10">
+                         <span className={`text-9xl ${s.color}`}>{s.symbol}</span>
+                    </div>
+
+                    {/* Bottom Corner (Rotated) */}
+                    <div className={`text-3xl font-bold ${s.color} flex flex-col items-center leading-none transform rotate-180`}>
+                        <span>{rank}</span>
+                        <span>{s.symbol}</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const CardSelector = ({ onSelect, onClose }) => {
+            const [selectedSuit, setSelectedSuit] = useState(null);
+
+            // Animation Variants
+            const containerVariants = {
+                hidden: { opacity: 0, y: 50 },
+                visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 20 } },
+                exit: { opacity: 0, y: 50 }
+            };
+
+            return (
+                <motion.div 
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                >
+                    <motion.div 
+                        className="glass w-full max-w-md p-6 rounded-3xl shadow-2xl relative overflow-hidden"
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
+                    >
+                        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+
+                        <h2 className="text-2xl font-bold text-slate-700 mb-6 text-center serif">
+                            {selectedSuit ? "Select Rank" : "Select Suit"}
+                        </h2>
+
+                        {!selectedSuit ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                {SUITS.map(suit => (
+                                    <button 
+                                        key={suit.id}
+                                        onClick={() => setSelectedSuit(suit)}
+                                        className="h-32 rounded-2xl bg-white/50 hover:bg-white transition-colors flex flex-col items-center justify-center gap-2 group border border-transparent hover:border-slate-200 shadow-sm"
+                                    >
+                                        <span className={`text-5xl ${suit.color} transition-transform group-hover:scale-110`}>{suit.symbol}</span>
+                                        <span className="text-slate-500 font-medium">{suit.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col h-full">
+                                <div className="grid grid-cols-4 gap-2 mb-4">
+                                    {RANKS.map(rank => (
+                                        <button 
+                                            key={rank}
+                                            onClick={() => onSelect(selectedSuit.id, rank)}
+                                            className="aspect-square rounded-xl bg-white/50 hover:bg-white text-slate-700 font-bold text-lg border border-transparent hover:border-slate-200 transition-all hover:scale-105 shadow-sm"
+                                        >
+                                            {rank}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button 
+                                    onClick={() => setSelectedSuit(null)}
+                                    className="mt-auto w-full py-3 rounded-xl bg-slate-200 text-slate-600 font-medium hover:bg-slate-300 transition-colors"
+                                >
+                                    Back to Suits
+                                </button>
+                            </div>
+                        )}
+                    </motion.div>
+                </motion.div>
+            );
+        };
+
+        const HistoryItem = ({ item, onClick, isActive }) => {
+            const suit = SUITS.find(s => s.id === item.suit);
+            return (
+                <motion.button 
+                    onClick={onClick}
+                    layoutId={`history-${item.id}`}
+                    className={`flex-shrink-0 w-12 h-16 rounded-lg border flex items-center justify-center bg-white shadow-sm transition-all ${isActive ? 'ring-2 ring-blue-400 -translate-y-2' : 'opacity-70 hover:opacity-100'}`}
+                >
+                    <span className={`${suit.color} font-bold text-lg`}>{item.rank}{suit.symbol}</span>
+                </motion.button>
+            );
+        };
+
+        // --- MAIN APP ---
+
+        const App = () => {
+            const [history, setHistory] = useState([]); // Array of {id, suit, rank, divination, timestamp}
+            const [currentCardId, setCurrentCardId] = useState(null);
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const [isWelcome, setIsWelcome] = useState(true);
+
+            // Load history from localStorage on mount
+            useEffect(() => {
+                const saved = localStorage.getItem('cartomancyHistory');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.length > 0) {
+                        setHistory(parsed);
+                        setCurrentCardId(parsed[parsed.length - 1].id);
+                        setIsWelcome(false);
+                    }
+                }
+            }, []);
+
+            // Save history when it changes
+            useEffect(() => {
+                localStorage.setItem('cartomancyHistory', JSON.stringify(history));
+            }, [history]);
+
+            const currentCard = useMemo(() => {
+                return history.find(c => c.id === currentCardId);
+            }, [history, currentCardId]);
+
+            const handleCardSelect = (suit, rank) => {
+                const divination = getDailyDivination(suit, rank);
+                const newCard = {
+                    id: Date.now(),
+                    suit,
+                    rank,
+                    divination,
+                    timestamp: new Date().toISOString()
+                };
+                
+                setHistory(prev => [...prev, newCard]);
+                setCurrentCardId(newCard.id);
+                setIsMenuOpen(false);
+                setIsWelcome(false);
+            };
+
+            const clearHistory = () => {
+                setHistory([]);
+                setCurrentCardId(null);
+                setIsWelcome(true);
+                localStorage.removeItem('cartomancyHistory');
+            };
+
+            return (
+                <div className="h-screen w-full flex flex-col relative">
+                    
+                    {/* Header */}
+                    <header className="p-4 flex justify-between items-center glass z-10 mx-4 mt-4 rounded-2xl">
+                        <h1 className="text-xl font-bold serif text-slate-700">Daily Cartomancy</h1>
+                        <button onClick={clearHistory} className="text-xs text-slate-400 hover:text-red-400 uppercase tracking-widest font-bold">
+                            Reset
+                        </button>
+                    </header>
+
+                    {/* Main Stage */}
+                    <main className="flex-grow flex flex-col items-center justify-center p-4 relative">
+                        <AnimatePresence mode="wait">
+                            {isWelcome ? (
+                                <motion.div 
+                                    key="welcome"
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    className="text-center max-w-md"
+                                >
+                                    <p className="text-slate-500 mb-6 text-lg">
+                                        Pull a card from your physical deck.<br/>
+                                        Let the day reveal its meaning.
+                                    </p>
+                                    <button 
+                                        onClick={() => setIsMenuOpen(true)}
+                                        className="px-8 py-4 bg-white text-slate-800 rounded-full shadow-lg font-bold hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 mx-auto"
+                                    >
+                                        <span>Enter Card</span>
+                                        <span className="text-blue-500">→</span>
+                                    </button>
+                                </motion.div>
+                            ) : (
+                                currentCard && (
+                                    <motion.div 
+                                        key={currentCard.id}
+                                        initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+                                        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                        exit={{ opacity: 0, y: -20, filter: 'blur(10px)' }}
+                                        transition={{ duration: 0.6, type: "spring" }}
+                                        className="flex flex-col items-center gap-8 w-full max-w-lg"
+                                    >
+                                        <CardDisplay suit={currentCard.suit} rank={currentCard.rank} />
+                                        
+                                        <div className="glass p-6 rounded-2xl w-full text-center">
+                                            <p className="text-slate-800 text-lg leading-relaxed font-medium serif">
+                                                "{currentCard.divination}"
+                                            </p>
+                                        </div>
+                                    </motion.div>
+                                )
+                            )}
+                        </AnimatePresence>
+                    </main>
+
+                    {/* Controls & History */}
+                    <div className="p-4 pb-8 z-10 w-full max-w-3xl mx-auto">
+                        {!isWelcome && (
+                            <div className="glass rounded-2xl p-2 mb-4 flex items-center gap-2 overflow-hidden">
+                                <button 
+                                    onClick={() => setIsMenuOpen(true)}
+                                    className="w-12 h-16 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 flex items-center justify-center flex-shrink-0 transition-colors"
+                                >
+                                    <span className="text-2xl">+</span>
+                                </button>
+                                <div className="h-8 w-px bg-slate-200 mx-1"></div>
+                                <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth flex-grow">
+                                    {history.map(item => (
+                                        <HistoryItem 
+                                            key={item.id} 
+                                            item={item} 
+                                            isActive={item.id === currentCardId}
+                                            onClick={() => setCurrentCardId(item.id)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Modal Menu */}
+                    <AnimatePresence>
+                        {isMenuOpen && (
+                            <CardSelector 
+                                onClose={() => setIsMenuOpen(false)} 
+                                onSelect={handleCardSelect} 
+                            />
+                        )}
+                    </AnimatePresence>
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
