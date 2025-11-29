@@ -21,7 +21,7 @@
             font-family: 'Quicksand', sans-serif;
             background: linear-gradient(135deg, #e0f7fa 0%, #e1efff 100%);
             color: #1e293b;
-            overflow: hidden; /* Prevent body scroll, handle in app */
+            overflow: hidden;
         }
         .serif { font-family: 'Cinzel', serif; }
         
@@ -32,31 +32,40 @@
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.8);
         }
-        .glass-dark {
-            background: rgba(15, 23, 42, 0.65);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        
+        /* Custom Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            margin-top: -6px; 
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #cbd5e1;
+            border-radius: 2px;
         }
 
-        /* Hide Scrollbar but allow scroll */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useRef, useMemo } = React;
         const { motion, AnimatePresence } = window.Motion;
 
-        // --- DATA & LOGIC ---
+        // --- DATA ---
 
         const SUITS = [
             { id: 'spades', symbol: '♠', color: 'text-slate-900', name: 'Spades' },
@@ -65,14 +74,11 @@
             { id: 'diamonds', symbol: '♦', color: 'text-rose-600', name: 'Diamonds' }
         ];
 
-        const RANKS = [
-            'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'
-        ];
+        const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
-        // A sample database of 52 fortunes. 
-        // In the future, this can be loaded from an external JSON file.
+        // Note: The index of the string here + 1 corresponds to the WAV file (e.g., Index 0 = DC_1.wav)
         const FORTUNE_DATABASE = [
-            "A sudden change in direction brings unexpected joy.",
+            "A sudden change in direction brings unexpected joy.", // DC_1.wav
             "Old wounds begin to heal; a time of peace is near.",
             "A message from a distant friend will clarify your doubts.",
             "Be wary of promises that sound too good to be true.",
@@ -123,11 +129,11 @@
             "Listen to the water; it knows the way.",
             "Fire burns away the old to make way for the new.",
             "The earth remains solid beneath your feet.",
-            "The wind carries your name to new places."
+            "The wind carries your name to new places." // DC_52.wav
         ];
 
-        // Seeded Random Number Generator to ensure daily consistency
-        // Uses the date string as a seed.
+        // --- LOGIC ---
+
         const seededRandom = (seed) => {
             let h = 0x811c9dc5;
             for (let i = 0; i < seed.length; i++) {
@@ -142,47 +148,66 @@
         };
 
         const getDailyDivination = (suit, rank) => {
-            const dateStr = new Date().toDateString(); // E.g., "Fri Oct 27 2023"
+            const dateStr = new Date().toDateString(); 
             const seed = dateStr; 
             const rng = seededRandom(seed);
             
-            // Create a shuffled index array for the day
             let indices = Array.from({length: 52}, (_, i) => i);
             for (let i = indices.length - 1; i > 0; i--) {
                 const j = Math.floor(rng() * (i + 1));
                 [indices[i], indices[j]] = [indices[j], indices[i]];
             }
 
-            // Map standard deck to 0-51 index
             const suitIndex = SUITS.findIndex(s => s.id === suit);
             const rankIndex = RANKS.indexOf(rank);
             const cardValue = (suitIndex * 13) + rankIndex;
-
-            // Get the shuffled fortune index
             const fortuneIndex = indices[cardValue] % FORTUNE_DATABASE.length;
+            
             return FORTUNE_DATABASE[fortuneIndex];
         };
 
+        // --- ICONS ---
+
+        const MusicIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+        );
+
+        const VoiceIcon = ({ on }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {on ? (
+                    <>
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </>
+                ) : (
+                    <>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                        <path d="M9 9v3a3 3 0 0 0 5.12 2.12"></path>
+                        <path d="M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+                        <path d="M19 10v2a7 7 0 0 1-2.9 5.68"></path>
+                        <path d="M12 19a7 7 0 0 1-7-7v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </>
+                )}
+            </svg>
+        );
+
         // --- COMPONENTS ---
 
-        const CardDisplay = ({ suit, rank, theme }) => {
+        const CardDisplay = ({ suit, rank }) => {
             const s = SUITS.find(x => x.id === suit);
-            const isRed = s.id === 'hearts' || s.id === 'diamonds';
-            
             return (
                 <div className={`relative w-64 h-96 rounded-2xl shadow-xl flex flex-col justify-between p-6 select-none bg-white transition-all duration-500`}>
-                    {/* Top Corner */}
                     <div className={`text-3xl font-bold ${s.color} flex flex-col items-center leading-none`}>
                         <span>{rank}</span>
                         <span>{s.symbol}</span>
                     </div>
-
-                    {/* Center Art Placeholder */}
                     <div className="flex-grow flex items-center justify-center opacity-10">
                          <span className={`text-9xl ${s.color}`}>{s.symbol}</span>
                     </div>
-
-                    {/* Bottom Corner (Rotated) */}
                     <div className={`text-3xl font-bold ${s.color} flex flex-col items-center leading-none transform rotate-180`}>
                         <span>{rank}</span>
                         <span>{s.symbol}</span>
@@ -193,8 +218,7 @@
 
         const CardSelector = ({ onSelect, onClose }) => {
             const [selectedSuit, setSelectedSuit] = useState(null);
-
-            // Animation Variants
+            
             const containerVariants = {
                 hidden: { opacity: 0, y: 50 },
                 visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 20 } },
@@ -204,19 +228,14 @@
             return (
                 <motion.div 
                     className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 >
                     <motion.div 
                         className="glass w-full max-w-md p-6 rounded-3xl shadow-2xl relative overflow-hidden"
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
+                        variants={containerVariants} initial="hidden" animate="visible" exit="exit"
                     >
                         <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         </button>
 
                         <h2 className="text-2xl font-bold text-slate-700 mb-6 text-center serif">
@@ -227,8 +246,7 @@
                             <div className="grid grid-cols-2 gap-4">
                                 {SUITS.map(suit => (
                                     <button 
-                                        key={suit.id}
-                                        onClick={() => setSelectedSuit(suit)}
+                                        key={suit.id} onClick={() => setSelectedSuit(suit)}
                                         className="h-32 rounded-2xl bg-white/50 hover:bg-white transition-colors flex flex-col items-center justify-center gap-2 group border border-transparent hover:border-slate-200 shadow-sm"
                                     >
                                         <span className={`text-5xl ${suit.color} transition-transform group-hover:scale-110`}>{suit.symbol}</span>
@@ -241,8 +259,7 @@
                                 <div className="grid grid-cols-4 gap-2 mb-4">
                                     {RANKS.map(rank => (
                                         <button 
-                                            key={rank}
-                                            onClick={() => onSelect(selectedSuit.id, rank)}
+                                            key={rank} onClick={() => onSelect(selectedSuit.id, rank)}
                                             className="aspect-square rounded-xl bg-white/50 hover:bg-white text-slate-700 font-bold text-lg border border-transparent hover:border-slate-200 transition-all hover:scale-105 shadow-sm"
                                         >
                                             {rank}
@@ -262,28 +279,25 @@
             );
         };
 
-        const HistoryItem = ({ item, onClick, isActive }) => {
-            const suit = SUITS.find(s => s.id === item.suit);
-            return (
-                <motion.button 
-                    onClick={onClick}
-                    layoutId={`history-${item.id}`}
-                    className={`flex-shrink-0 w-12 h-16 rounded-lg border flex items-center justify-center bg-white shadow-sm transition-all ${isActive ? 'ring-2 ring-blue-400 -translate-y-2' : 'opacity-70 hover:opacity-100'}`}
-                >
-                    <span className={`${suit.color} font-bold text-lg`}>{item.rank}{suit.symbol}</span>
-                </motion.button>
-            );
-        };
-
         // --- MAIN APP ---
 
         const App = () => {
-            const [history, setHistory] = useState([]); // Array of {id, suit, rank, divination, timestamp}
+            const [history, setHistory] = useState([]);
             const [currentCardId, setCurrentCardId] = useState(null);
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             const [isWelcome, setIsWelcome] = useState(true);
 
-            // Load history from localStorage on mount
+            // Audio State
+            const [musicVolume, setMusicVolume] = useState(0.5);
+            const [isMusicMuted, setIsMusicMuted] = useState(false);
+            const [showMusicControls, setShowMusicControls] = useState(false);
+            const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+
+            // Refs
+            const bgMusicRef = useRef(null);
+            const voiceRef = useRef(null);
+
+            // Init History
             useEffect(() => {
                 const saved = localStorage.getItem('cartomancyHistory');
                 if (saved) {
@@ -296,22 +310,60 @@
                 }
             }, []);
 
-            // Save history when it changes
+            // Save History
             useEffect(() => {
                 localStorage.setItem('cartomancyHistory', JSON.stringify(history));
             }, [history]);
+
+            // Handle Music Volume
+            useEffect(() => {
+                if (bgMusicRef.current) {
+                    bgMusicRef.current.volume = isMusicMuted ? 0 : musicVolume;
+                }
+            }, [musicVolume, isMusicMuted]);
 
             const currentCard = useMemo(() => {
                 return history.find(c => c.id === currentCardId);
             }, [history, currentCardId]);
 
+            // Handle Voice Logic
+            useEffect(() => {
+                // Stop any playing voice first
+                if (voiceRef.current) {
+                    voiceRef.current.pause();
+                    voiceRef.current.currentTime = 0;
+                }
+
+                if (currentCard && isVoiceEnabled) {
+                    const fortuneText = currentCard.divination;
+                    // Find index in database to map to filename
+                    const index = FORTUNE_DATABASE.indexOf(fortuneText);
+                    
+                    if (index !== -1) {
+                        // Play DC_{index+1}.wav
+                        const fileNumber = index + 1;
+                        voiceRef.current.src = `assets/audio/DC_${fileNumber}.wav`;
+                        // Slight delay to allow card animation to start
+                        setTimeout(() => {
+                            if(isVoiceEnabled) voiceRef.current.play().catch(e => console.log("Interaction needed for playback"));
+                        }, 500);
+                    }
+                }
+            }, [currentCardId, isVoiceEnabled, currentCard]);
+
+            const handleStart = () => {
+                setIsMenuOpen(true);
+                // Trigger music on first user interaction to bypass browser policies
+                if (bgMusicRef.current && bgMusicRef.current.paused) {
+                    bgMusicRef.current.play().catch(e => console.log("Audio prevented"));
+                }
+            };
+
             const handleCardSelect = (suit, rank) => {
                 const divination = getDailyDivination(suit, rank);
                 const newCard = {
                     id: Date.now(),
-                    suit,
-                    rank,
-                    divination,
+                    suit, rank, divination,
                     timestamp: new Date().toISOString()
                 };
                 
@@ -329,18 +381,69 @@
             };
 
             return (
-                <div className="h-screen w-full flex flex-col relative">
+                <div className="h-screen w-full flex flex-col relative" onClick={() => setShowMusicControls(false)}>
                     
+                    {/* Audio Elements */}
+                    <audio ref={bgMusicRef} src="assets/audio/Daily Cartomancy.mp3" loop={false} />
+                    <audio ref={voiceRef} />
+
                     {/* Header */}
-                    <header className="p-4 flex justify-between items-center glass z-10 mx-4 mt-4 rounded-2xl">
-                        <h1 className="text-xl font-bold serif text-slate-700">Daily Cartomancy</h1>
-                        <button onClick={clearHistory} className="text-xs text-slate-400 hover:text-red-400 uppercase tracking-widest font-bold">
-                            Reset
-                        </button>
+                    <header className="p-4 flex justify-between items-center glass z-20 mx-4 mt-4 rounded-2xl relative">
+                        <div className="w-20 text-left">
+                           <button onClick={clearHistory} className="text-xs text-slate-400 hover:text-red-400 uppercase tracking-widest font-bold">
+                                Reset
+                            </button>
+                        </div>
+
+                        <h1 className="text-xl font-bold serif text-slate-700 text-center flex-grow">Daily Cartomancy</h1>
+                        
+                        {/* Audio Controls */}
+                        <div className="w-20 flex justify-end gap-3 items-center relative">
+                            
+                            {/* Voice Toggle */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsVoiceEnabled(!isVoiceEnabled); }}
+                                className={`transition-colors ${isVoiceEnabled ? 'text-slate-700' : 'text-slate-300'}`}
+                                title="Toggle Voiceovers"
+                            >
+                                <VoiceIcon on={isVoiceEnabled} />
+                            </button>
+
+                            {/* Music Controls */}
+                            <div className="relative">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setShowMusicControls(!showMusicControls); }}
+                                    className={`transition-colors ${!isMusicMuted ? 'text-slate-700' : 'text-slate-300'}`}
+                                >
+                                    <MusicIcon />
+                                </button>
+                                
+                                {/* Dropdown */}
+                                {showMusicControls && (
+                                    <div 
+                                        className="absolute right-0 top-10 glass p-4 rounded-xl shadow-xl w-48 flex flex-col gap-3"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="flex justify-between items-center text-sm font-bold text-slate-600">
+                                            <span>Music</span>
+                                            <button onClick={() => setIsMusicMuted(!isMusicMuted)} className="text-xs uppercase bg-slate-200 px-2 py-1 rounded hover:bg-slate-300">
+                                                {isMusicMuted ? "Unmute" : "Mute"}
+                                            </button>
+                                        </div>
+                                        <input 
+                                            type="range" min="0" max="1" step="0.01" 
+                                            value={musicVolume}
+                                            onChange={(e) => { setMusicVolume(parseFloat(e.target.value)); setIsMusicMuted(false); }}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </header>
 
                     {/* Main Stage */}
-                    <main className="flex-grow flex flex-col items-center justify-center p-4 relative">
+                    <main className="flex-grow flex flex-col items-center justify-center p-4 relative z-0">
                         <AnimatePresence mode="wait">
                             {isWelcome ? (
                                 <motion.div 
@@ -355,7 +458,7 @@
                                         Let the day reveal its meaning.
                                     </p>
                                     <button 
-                                        onClick={() => setIsMenuOpen(true)}
+                                        onClick={handleStart}
                                         className="px-8 py-4 bg-white text-slate-800 rounded-full shadow-lg font-bold hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 mx-auto"
                                     >
                                         <span>Enter Card</span>
@@ -385,9 +488,9 @@
                         </AnimatePresence>
                     </main>
 
-                    {/* Controls & History */}
+                    {/* History Slider */}
                     <div className="p-4 pb-8 z-10 w-full max-w-3xl mx-auto">
-                        {!isWelcome && (
+                        {!isWelcome && history.length > 0 && (
                             <div className="glass rounded-2xl p-2 mb-4 flex items-center gap-2 overflow-hidden">
                                 <button 
                                     onClick={() => setIsMenuOpen(true)}
@@ -397,14 +500,19 @@
                                 </button>
                                 <div className="h-8 w-px bg-slate-200 mx-1"></div>
                                 <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth flex-grow">
-                                    {history.map(item => (
-                                        <HistoryItem 
-                                            key={item.id} 
-                                            item={item} 
-                                            isActive={item.id === currentCardId}
-                                            onClick={() => setCurrentCardId(item.id)}
-                                        />
-                                    ))}
+                                    {history.map(item => {
+                                        const s = SUITS.find(suit => suit.id === item.suit);
+                                        const isActive = item.id === currentCardId;
+                                        return (
+                                            <motion.button 
+                                                key={item.id}
+                                                onClick={() => setCurrentCardId(item.id)}
+                                                className={`flex-shrink-0 w-12 h-16 rounded-lg border flex items-center justify-center bg-white shadow-sm transition-all ${isActive ? 'ring-2 ring-blue-400 -translate-y-2' : 'opacity-70 hover:opacity-100'}`}
+                                            >
+                                                <span className={`${s.color} font-bold text-lg`}>{item.rank}{s.symbol}</span>
+                                            </motion.button>
+                                        )
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -412,12 +520,7 @@
 
                     {/* Modal Menu */}
                     <AnimatePresence>
-                        {isMenuOpen && (
-                            <CardSelector 
-                                onClose={() => setIsMenuOpen(false)} 
-                                onSelect={handleCardSelect} 
-                            />
-                        )}
+                        {isMenuOpen && <CardSelector onClose={() => setIsMenuOpen(false)} onSelect={handleCardSelect} />}
                     </AnimatePresence>
 
                 </div>
